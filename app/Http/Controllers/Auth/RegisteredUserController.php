@@ -33,14 +33,28 @@ class RegisteredUserController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|string|lowercase|email|max:255|unique:'.User::class,
+            'email' => [
+                'required',
+                'string',
+                'lowercase',
+                'email',
+                'max:255',
+                'unique:'.User::class,
+                'regex:/^[A-Za-z0-9._%+-]+@(?:latinpymes\.com|latinpyme\.com)$/i',
+            ],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
+            'role' => ['required', 'in:admin,worker'],
+        ], [
+            'email.regex' => 'Debes registrarte con un correo empresarial de Latinpyme (@latinpymes.com o @latinpyme.com).',
+            'role.required' => 'Debes seleccionar un tipo de cuenta.',
+            'role.in' => 'El tipo de cuenta no es válido.',
         ]);
 
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
+            'role' => $request->role,
         ]);
 
         event(new Registered($user));

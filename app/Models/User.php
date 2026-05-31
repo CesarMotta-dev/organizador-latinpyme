@@ -7,6 +7,7 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use App\Models\CompanyEmail; // 🚀 Importación limpia del modelo relacionado
 
 class User extends Authenticatable
 {
@@ -22,6 +23,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'role',
     ];
 
     /**
@@ -46,8 +48,31 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
-    public function emailRules()
+
+    /**
+     * 🚀 RELACIÓN CLAVE PARA EL ADMINISTRADOR CENTRALIZADO
+     * Un usuario administrador tiene y gestiona múltiples correos de la empresa.
+     */
+    public function companyEmails()
     {
-        return $this->hasMany(EmailRule::class);
+        return $this->hasMany(CompanyEmail::class);
+    }
+
+    /**
+     * Correos asignados a este usuario (si es trabajador)
+     */
+    public function assignedCompanyEmails()
+    {
+        return $this->hasMany(CompanyEmail::class, 'worker_id');
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->role === 'admin';
+    }
+
+    public function isWorker(): bool
+    {
+        return $this->role === 'worker';
     }
 }

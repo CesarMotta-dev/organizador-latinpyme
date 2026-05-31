@@ -12,6 +12,7 @@ class EmailRule extends Model
     // Los campos que permitimos guardar masivamente
     protected $fillable = [
         'user_id',
+        'company_email_id',
         'correo',
         'carpeta',
         'asunto',
@@ -20,6 +21,8 @@ class EmailRule extends Model
         'confirma_sugerencia',
         'carpeta_elegida',
         'id_mensaje',
+        'tipo_filtro',
+        'valor_filtro',
         'estado',
     ];
 
@@ -27,5 +30,11 @@ class EmailRule extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    // Relación: Una regla pertenece a un correo empresarial
+    public function companyEmail()
+    {
+        return $this->belongsTo(CompanyEmail::class);
     }
 }
