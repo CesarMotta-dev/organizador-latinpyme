@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Illuminate\Http\Request;
 use App\Models\EmailRule; // Importamos nuestro nuevo modelo
+use App\Services\N8nService; // Integración con n8n
 
 Route::get('/', function () {
     return redirect()->route('login');
@@ -47,6 +48,10 @@ Route::post('/email-rules', function (Request $request) {
         'id_mensaje' => $request->id_mensaje,
         'estado' => 'Activo',
     ]);
+
+    // Sincronizamos todas las reglas del usuario con n8n
+    $todasLasReglas = auth()->user()->emailRules()->latest()->get();
+    app(N8nService::class)->syncRules(auth()->id(), $todasLasReglas);
 
     // Recargamos la página (Inertia hará esto sin parpadear la pantalla)
     return back();
@@ -109,6 +114,10 @@ Route::post('/email-rules/import', function (Request $request) {
         );
     }
 
+    // Sincronizamos todas las reglas del usuario con n8n tras la importación
+    $todasLasReglas = auth()->user()->emailRules()->latest()->get();
+    app(N8nService::class)->syncRules(auth()->id(), $todasLasReglas);
+
     return back();
 })->middleware('auth')->name('email-rules.import');
 
@@ -138,6 +147,10 @@ Route::patch('/email-rules/{rule}', function (Request $request, EmailRule $rule)
         'carpeta_elegida' => $request->carpeta_elegida,
         'id_mensaje' => $request->id_mensaje,
     ]);
+
+    // Sincronizamos todas las reglas actualizadas con n8n
+    $todasLasReglas = $rule->user->emailRules()->latest()->get();
+    app(N8nService::class)->syncRules($rule->user_id, $todasLasReglas);
 
     return back();
 })->middleware('auth')->name('email-rules.update');

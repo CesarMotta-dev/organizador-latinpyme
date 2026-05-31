@@ -35,4 +35,10 @@ return [
         ],
     ],
 
+    // N8N Integration
+    'n8n' => [
+        'webhook_url'    => env('N8N_API_URL', ''),
+        'webhook_secret' => env('N8N_WEBHOOK_SECRET', ''),
+    ],
+
 ];
