@@ -1,10 +1,11 @@
-﻿<?php
+<?php
 
 // 1´©ÅÔâú IMPORTACIONES ORDENADAS (Siempre arriba del todo)
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\EmailRuleController;
 use App\Http\Controllers\CompanyEmailController;
 use App\Http\Controllers\GoogleController; // ­ƒæê Agregamos este para que no te tire error con Google
+use App\Http\Controllers\DeletedEmailController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
@@ -40,9 +41,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Actualizar/Modificar una regla existente (Filtros, carpetas, etc.)
     Route::patch('/email-rules/{rule}', [EmailRuleController::class, 'update'])->name('email-rules.update');
 
+    // Eliminar todas las reglas
+    Route::delete('/email-rules/delete-all', [EmailRuleController::class, 'destroyAll'])->name('email-rules.destroyAll');
+
+    // Eliminar una regla específica
+    Route::delete('/email-rules/{rule}', [EmailRuleController::class, 'destroy'])->name('email-rules.destroy');
+
     // Ô£¿ NUEVO: Gesti├│n de Correos Empresariales
     Route::resource('company-emails', CompanyEmailController::class);
     Route::get('/api/company-emails/select', [CompanyEmailController::class, 'getForSelect']);
+    Route::get('/deleted-emails', [DeletedEmailController::class, 'index'])->name('deleted-emails.index');
 
     // Rutas del perfil de usuario (Por defecto de Laravel Breeze)
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');

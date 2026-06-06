@@ -327,6 +327,57 @@ class EmailRuleController extends Controller
     }
 
     /**
+     * Remove the specified email rule from storage.
+     */
+    public function destroy(EmailRule $rule)
+    {
+        $companyEmail = CompanyEmail::findOrFail($rule->company_email_id);
+        
+        $user = auth()->user();
+        if ($user->isAdmin()) {
+            abort_if($companyEmail->user_id !== $user->id, 403);
+        } else {
+            abort_if($companyEmail->worker_id !== $user->id, 403);
+        }
+
+        $ruleData = $rule->toArray();
+        $rule->delete();
+
+        $this->dispatchN8nEvent('regla_eliminada', $companyEmail, [
+            'regla' => $ruleData,
+        ]);
+
+        return back()->with('success', 'Regla eliminada correctamente.');
+    }
+
+    /**
+     * Remove all email rules for the selected company email.
+     */
+    public function destroyAll(Request $request)
+    {
+        $companyEmailId = $this->resolveCompanyEmailId($request);
+        abort_if(!$companyEmailId, 422, 'Debes seleccionar un correo empresarial válido.');
+
+        $companyEmail = CompanyEmail::findOrFail($companyEmailId);
+        
+        $user = auth()->user();
+        if ($user->isAdmin()) {
+            abort_if($companyEmail->user_id !== $user->id, 403);
+        } else {
+            abort_if($companyEmail->worker_id !== $user->id, 403);
+        }
+
+        $count = $companyEmail->emailRules()->count();
+        $companyEmail->emailRules()->delete();
+
+        $this->dispatchN8nEvent('todas_reglas_eliminadas', $companyEmail, [
+            'cantidad' => $count,
+        ]);
+
+        return back()->with('success', "Se eliminaron $count reglas correctamente.");
+    }
+
+    /**
      * Resolve the company email ID from the request.
      * If the selected company email id is missing, try to create one from the provided email.
      */

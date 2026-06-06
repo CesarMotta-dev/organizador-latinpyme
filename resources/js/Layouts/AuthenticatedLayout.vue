@@ -39,6 +39,19 @@ const showingNavigationDropdown = ref(false);
                                 >
                                     Dashboard
                                 </NavLink>
+                                <NavLink
+                                    v-if="$page.props.auth.user.role === 'admin'"
+                                    :href="route('company-emails.index')"
+                                    :active="route().current('company-emails.*')"
+                                >
+                                    Cuentas / Colaboradores
+                                </NavLink>
+                                <NavLink
+                                    :href="route('deleted-emails.index')"
+                                    :active="route().current('deleted-emails.*')"
+                                >
+                                    Papelera (72 hrs)
+                                </NavLink>
                             </div>
                         </div>
 
@@ -145,6 +158,19 @@ const showingNavigationDropdown = ref(false);
                             :active="route().current('dashboard')"
                         >
                             Dashboard
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink
+                            v-if="$page.props.auth.user.role === 'admin'"
+                            :href="route('company-emails.index')"
+                            :active="route().current('company-emails.*')"
+                        >
+                            Cuentas / Colaboradores
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink
+                            :href="route('deleted-emails.index')"
+                            :active="route().current('deleted-emails.*')"
+                        >
+                            Papelera (72 hrs)
                         </ResponsiveNavLink>
                     </div>
 

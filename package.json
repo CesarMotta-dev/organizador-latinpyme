@@ -21,6 +21,7 @@
         "vue": "^3.4.0"
     },
     "dependencies": {
+        "dayjs": "^1.11.21",
         "nprogress": "^0.2.0",
         "primeicons": "^7.0.0",
         "primevue": "^3.30.0"

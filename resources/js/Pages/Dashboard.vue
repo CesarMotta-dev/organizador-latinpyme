@@ -39,6 +39,14 @@ const props = defineProps({
     reglasDB: {
         type: Array,
         default: () => [] 
+    },
+    companyEmails: {
+        type: Array,
+        default: () => []
+    },
+    selectedCompanyEmailId: {
+        type: Number,
+        default: null
     }
 });
 
@@ -54,6 +62,7 @@ const filters = ref({
 
 // 4. Formulario (Inertia)
 const form = useForm({
+    company_email_id: props.selectedCompanyEmailId,
     correo: '',
     carpeta: '',
     asunto: '',
@@ -65,7 +74,8 @@ const form = useForm({
 });
 
 const importForm = useForm({
-    csv: ''
+    csv: '',
+    company_email_id: props.selectedCompanyEmailId
 });
 const visibleImportModal = ref(false);
 const importErrors = ref([]);
@@ -81,6 +91,7 @@ function openNew() {
     isEditing.value = false;
     currentRuleId.value = null;
     form.reset();
+    form.company_email_id = props.selectedCompanyEmailId;
     form.clearErrors();
     visibleModalRule.value = true;
 }
@@ -88,6 +99,7 @@ function openNew() {
 function editRule(regla) {
     isEditing.value = true;
     currentRuleId.value = regla.id; 
+    form.company_email_id = regla.company_email_id || props.selectedCompanyEmailId;
     form.correo = regla.correo;
     form.carpeta = regla.carpeta;
     form.asunto = regla.asunto || '';
@@ -115,6 +127,18 @@ const saveRule = () => {
                 form.reset();
             }
         });
+    }
+};
+
+const deleteRule = (regla) => {
+    if (confirm(`¿Estás seguro de que deseas eliminar la regla para ${regla.correo}?`)) {
+        form.delete(route('email-rules.destroy', regla.id));
+    }
+};
+
+const deleteAllRules = () => {
+    if (confirm('¿Estás SEGURO de que deseas eliminar TODAS las reglas? Esta acción no se puede deshacer.')) {
+        form.delete(route('email-rules.destroyAll', { company_email_id: props.selectedCompanyEmailId }));
     }
 };
 
@@ -209,6 +233,7 @@ function handleCsvFile(event) {
                                 <InputText v-model="filters['global'].value" placeholder="Buscar regla..." size="small" class="pl-10" />
                             </span>
                             <Button label="Crear Regla" icon="pi pi-plus" severity="success" @click="openNew"></Button>
+                            <Button label="Eliminar Todas" icon="pi pi-trash" severity="danger" class="ml-2" @click="deleteAllRules" :disabled="reglasDB.length === 0"></Button>
                             <Button label="Importar Sheet" icon="pi pi-upload" severity="info" class="ml-2" @click="openImportModal"></Button>
                             <Button label="Subir CSV" icon="pi pi-cloud-upload" severity="help" class="ml-2" @click="openImportModal"></Button>
                         </div>
@@ -288,6 +313,13 @@ function handleCsvFile(event) {
                                         class="mr-2"
                                         severity="info"
                                         @click="editRule(slotProps.data)"
+                                    />
+                                    <Button 
+                                        icon="pi pi-trash" 
+                                        outlined 
+                                        rounded 
+                                        severity="danger"
+                                        @click="deleteRule(slotProps.data)"
                                     />
                                 </template>
                             </Column>
