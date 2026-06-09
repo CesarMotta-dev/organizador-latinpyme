@@ -146,4 +146,38 @@ class N8nIntegrationController extends Controller
             'data' => $deletedLog
         ]);
     }
-}
+public function logUnclassifiedEmail(Request $request)
+{
+    // Capturamos el correo ya sea que venga como 'correo' o como 'remitente'
+    $emailReal = $request->input('correo') ?? $request->input('remitente');
+
+    // Si ambos vienen vacíos, ponemos un correo de respaldo para que la base de datos no estalle
+    if (!$emailReal) {
+        $emailReal = 'desconocido@latinpyme.com';
+    }
+
+    // Buscamos la primera cuenta corporativa que exista en el sistema
+    $companyEmailId = \App\Models\CompanyEmail::value('id') ?? 1;
+
+    // Guardamos usando estrictamente las llaves de tu $fillable
+    \App\Models\EmailRule::create([
+        'user_id'             => 1,
+        'company_email_id'    => $companyEmailId,
+        'correo'              => $emailReal, // Usamos la variable segura
+        'carpeta'             => 'POR CLASIFICAR',
+        'asunto'              => $request->input('asunto') ?? '(Sin Asunto)',
+        'observaciones'       => 'Registrado automáticamente por n8n.',
+        'carpeta_sugerida'    => 'POR CLASIFICAR',
+        'confirma_sugerencia' => 'No',
+        'carpeta_elegida'     => 'POR CLASIFICAR',
+        'id_mensaje'          => $request->input('id_mensaje'),
+        'tipo_filtro'         => 'Remitente',
+        'valor_filtro'        => $emailReal,
+        'estado'              => 'Activo',
+    ]);
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Registrado con éxito saltando validaciones vacías.'
+    ], 200);
+}}
