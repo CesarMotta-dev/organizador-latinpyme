@@ -15,3 +15,4 @@ Route::post('/email-rules/sync', [N8nIntegrationController::class, 'updateRuleFr
 Route::post('/deleted-emails', [N8nIntegrationController::class, 'logDeletedEmail']);
 Route::post('/correos-pendientes', [N8nIntegrationController::class, 'logUnclassifiedEmail']);
 
+

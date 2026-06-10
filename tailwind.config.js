@@ -13,10 +13,13 @@ export default {
     theme: {
         extend: {
             fontFamily: {
-                sans: ['Figtree', ...defaultTheme.fontFamily.sans],
+                // Aquí integramos Inter y mantenemos el respaldo de Tailwind
+                sans: ['Inter', ...defaultTheme.fontFamily.sans],
             },
         },
     },
 
-    plugins: [forms],
+    plugins: [
+        forms,
+    ],
 };
