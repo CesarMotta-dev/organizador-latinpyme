@@ -1,7 +1,7 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, useForm } from '@inertiajs/vue3'; 
-import { ref } from 'vue';
+import { Head, useForm, router } from '@inertiajs/vue3'; 
+import { ref, computed } from 'vue';
 import DataTable from 'primevue/datatable';
 import Column from 'primevue/column';
 import Dialog from 'primevue/dialog';
@@ -9,6 +9,8 @@ import Button from 'primevue/button';
 import InputText from 'primevue/inputtext';
 import Textarea from 'primevue/textarea';
 import Tag from 'primevue/tag';
+import Dropdown from 'primevue/dropdown';
+import Checkbox from 'primevue/checkbox';
 //import { CustomCard } from '@/Components/Avalon/Ui/custom-card';
 //import { FilterMatchMode } from '@primevue/core/api';
 //import { get } from '@vueuse/core';
@@ -54,10 +56,16 @@ const props = defineProps({
 const visibleModalRule = ref(false);
 const isEditing = ref(false);
 const currentRuleId = ref(null);
+const selectedRules = ref([]);
 
 // 3. Filtros (Usamos 'contains' en texto plano para evitar importar FilterMatchMode)
 const filters = ref({
     global: { value: null, matchMode: 'contains' }
+});
+
+const carpetasDisponibles = computed(() => {
+    const folders = new Set(props.reglasDB.map(r => r.carpeta).filter(c => c && c.toLowerCase() !== 'inbox'));
+    return Array.from(folders).sort();
 });
 
 // 4. Formulario (Inertia)
@@ -134,6 +142,37 @@ const deleteRule = (regla) => {
     if (confirm(`¿Estás seguro de que deseas eliminar la regla para ${regla.correo}?`)) {
         form.delete(route('email-rules.destroy', regla.id));
     }
+};
+
+const deleteSelectedRules = () => {
+    if (!selectedRules.value || selectedRules.value.length === 0) return;
+    if (confirm(`¿Estás seguro de que deseas eliminar las ${selectedRules.value.length} reglas seleccionadas?`)) {
+        router.delete(route('email-rules.destroyMultiple'), {
+            data: { ids: selectedRules.value.map(r => r.id) },
+            onSuccess: () => {
+                selectedRules.value = [];
+            }
+        });
+    }
+};
+
+const updateRuleInline = (regla) => {
+    router.put(route('email-rules.update', regla.id), regla, {
+        preserveScroll: true,
+        preserveState: true,
+    });
+};
+
+const updateConfirmaInline = (regla) => {
+    if (regla.confirma_sugerencia === 'Sí') {
+        regla.carpeta = regla.carpeta_sugerida;
+    } else {
+        regla.carpeta = 'Sin clasificar';
+    }
+    router.put(route('email-rules.update', regla.id), regla, {
+        preserveScroll: true,
+        preserveState: true,
+    });
 };
 
 const deleteAllRules = () => {
@@ -233,17 +272,20 @@ function handleCsvFile(event) {
                                 <InputText v-model="filters['global'].value" placeholder="Buscar regla..." size="small" class="pl-10" />
                             </span>
                             <Button label="Crear Regla" icon="pi pi-plus" severity="success" @click="openNew"></Button>
+                            <Button label="Eliminar Seleccionadas" icon="pi pi-trash" severity="danger" class="ml-2" @click="deleteSelectedRules" :disabled="!selectedRules || selectedRules.length === 0"></Button>
                             <Button label="Eliminar Todas" icon="pi pi-trash" severity="danger" class="ml-2" @click="deleteAllRules" :disabled="reglasDB.length === 0"></Button>
-                            <Button label="Importar Sheet" icon="pi pi-upload" severity="info" class="ml-2" @click="openImportModal"></Button>
-                            <Button label="Subir CSV" icon="pi pi-cloud-upload" severity="help" class="ml-2" @click="openImportModal"></Button>
+                            <Button label="Importar CSV" icon="pi pi-cloud-upload" severity="help" class="ml-2" @click="openImportModal"></Button>
                         </div>
                     </div>
                     
                     <div class="p-0">
                         <DataTable 
                             v-model:filters="filters" 
+                            v-model:selection="selectedRules"
                             :value="reglasDB" 
                             dataKey="id"
+                            scrollable
+                            scrollHeight="calc(100vh - 300px)"
                             tableStyle="min-width: 50rem" 
                             :globalFilterFields="['correo', 'carpeta', 'estado', 'asunto', 'carpeta_sugerida', 'confirma_sugerencia', 'carpeta_elegida', 'id_mensaje']"
                         >
@@ -253,6 +295,8 @@ function handleCsvFile(event) {
                                 </div>
                             </template>
                             
+                            <Column selectionMode="multiple" headerStyle="width: 3rem"></Column>
+
                             <Column field="correo" header="Correo del Remitente" sortable>
                                 <template #body="slotProps">
                                     <span class="font-medium text-gray-800">{{ slotProps.data.correo }}</span>
@@ -261,7 +305,13 @@ function handleCsvFile(event) {
                             
                             <Column field="carpeta" header="Carpeta Destino" sortable>
                                 <template #body="slotProps">
-                                    <Tag :value="slotProps.data.carpeta" severity="info" rounded></Tag>
+                                    <Dropdown 
+                                        v-model="slotProps.data.carpeta" 
+                                        :options="carpetasDisponibles"
+                                        editable
+                                        class="w-full min-w-[150px]"
+                                        @change="updateRuleInline(slotProps.data)"
+                                    />
                                 </template>
                             </Column>
 
@@ -279,7 +329,13 @@ function handleCsvFile(event) {
 
                             <Column field="confirma_sugerencia" header="Confirma" sortable>
                                 <template #body="slotProps">
-                                    <Tag :value="slotProps.data.confirma_sugerencia" severity="success" rounded></Tag>
+                                    <Checkbox 
+                                        v-model="slotProps.data.confirma_sugerencia" 
+                                        trueValue="Sí" 
+                                        falseValue="No" 
+                                        binary
+                                        @change="updateConfirmaInline(slotProps.data)"
+                                    />
                                 </template>
                             </Column>
 
@@ -350,10 +406,12 @@ function handleCsvFile(event) {
                 
                 <div class="flex flex-col gap-1">
                     <label for="carpeta" class="font-semibold text-gray-700">Carpeta de Destino</label>
-                    <InputText 
+                    <Dropdown 
                         id="carpeta" 
                         v-model="form.carpeta" 
-                        type="text" 
+                        :options="carpetasDisponibles"
+                        editable
+                        class="w-full"
                         placeholder="Ej: FACTURACIÓN" 
                         :invalid="form.errors.carpeta ? true : false"
                     />
@@ -397,14 +455,17 @@ function handleCsvFile(event) {
                 </div>
 
                 <div class="flex flex-col gap-1">
-                    <label for="confirma_sugerencia" class="font-semibold text-gray-700">Confirma Sugerencia</label>
-                    <InputText
-                        id="confirma_sugerencia"
-                        v-model="form.confirma_sugerencia"
-                        type="text"
-                        placeholder="Sí / No"
-                        :invalid="form.errors.confirma_sugerencia ? true : false"
-                    />
+                    <div class="flex items-center gap-2">
+                        <Checkbox 
+                            inputId="confirma_sugerencia" 
+                            v-model="form.confirma_sugerencia" 
+                            trueValue="Sí" 
+                            falseValue="No" 
+                            binary
+                            @change="form.confirma_sugerencia === 'Sí' ? form.carpeta = form.carpeta_sugerida : form.carpeta = 'Sin clasificar'"
+                        />
+                        <label for="confirma_sugerencia" class="font-semibold text-gray-700 cursor-pointer">Confirma Sugerencia</label>
+                    </div>
                     <small v-if="form.errors.confirma_sugerencia" class="text-red-500">{{ form.errors.confirma_sugerencia }}</small>
                 </div>
 

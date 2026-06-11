@@ -6,6 +6,7 @@ use App\Models\EmailRule;
 use App\Models\CompanyEmail;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http; // 🚀 REQUISITO: Para disparar a la nube de Railway
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 class EmailRuleController extends Controller
@@ -50,7 +51,8 @@ class EmailRuleController extends Controller
             ->count();
 
         // Build the query for the selected company email
-        $query = EmailRule::whereIn('company_email_id', $validCompanyEmailIds);
+        $query = EmailRule::whereIn('company_email_id', $validCompanyEmailIds)
+            ->where('user_id', auth()->id());
 
         $selectedCompanyEmailId = request('company_email_id');
         $selectedCompanyEmailId = $selectedCompanyEmailId !== null ? (int) $selectedCompanyEmailId : null;
@@ -80,12 +82,28 @@ class EmailRuleController extends Controller
      */
     public function store(Request $request)
     {
+        $companyEmailId = $this->resolveCompanyEmailId($request);
+        abort_if(!$companyEmailId, 422, 'Debes seleccionar o especificar un correo empresarial válido.');
+
         // Validamos que los datos vengan correctos
         $request->validate([
             'company_email_id' => 'nullable|exists:company_emails,id',
             'company_email' => 'nullable|email',
-            'correo' => 'nullable|email',
-            'carpeta' => 'required|string|max:255',
+            'correo' => [
+                'nullable',
+                'email',
+                Rule::unique('email_rules')->where(fn ($query) => $query->where('company_email_id', $companyEmailId)->where('user_id', auth()->id()))
+            ],
+            'carpeta' => [
+                'required',
+                'string',
+                'max:255',
+                function ($attribute, $value, $fail) {
+                    if (strtolower(trim($value)) === 'inbox') {
+                        $fail('La carpeta destino no puede ser "INBOX" ya que el objetivo es organizar el correo.');
+                    }
+                }
+            ],
             'asunto' => 'nullable|string|max:255',
             'observaciones' => 'nullable|string|max:1000',
             'carpeta_sugerida' => 'nullable|string|max:255',
@@ -95,9 +113,6 @@ class EmailRuleController extends Controller
             'tipo_filtro' => 'nullable|in:remitente,asunto,contenido',
             'valor_filtro' => 'nullable|string|max:255',
         ]);
-
-        $companyEmailId = $this->resolveCompanyEmailId($request);
-        abort_if(!$companyEmailId, 422, 'Debes seleccionar o especificar un correo empresarial válido.');
 
         $companyEmail = CompanyEmail::findOrFail($companyEmailId);
 
@@ -207,6 +222,12 @@ class EmailRuleController extends Controller
                 continue;
             }
 
+            // No permitimos que la carpeta destino sea INBOX
+            if (isset($data['carpeta']) && strtolower(trim($data['carpeta'])) === 'inbox') {
+                $filasOmitidas++;
+                continue;
+            }
+
             // 🚀 CONTROL CENTRALIZADO: Buscamos a qué cuenta corporativa pertenece la regla en el CSV
             // Si no se especifica en el CSV, le asignamos la primera cuenta activa del admin logueado
             // Evitamos llamar a user() en el helper auth() para no romper análisis estático
@@ -244,7 +265,7 @@ class EmailRuleController extends Controller
             }
 
             $regla = $companyEmail->emailRules()->updateOrCreate(
-                ['correo' => $data['correo']],
+                ['correo' => $data['correo'], 'user_id' => auth()->id()],
                 array_merge($data, [
                     'user_id' => auth()->id(),
                     'estado' => 'Activo'
@@ -276,11 +297,27 @@ class EmailRuleController extends Controller
      */
     public function update(Request $request, EmailRule $rule)
     {
+        $companyEmailId = $this->resolveCompanyEmailId($request);
+        abort_if(!$companyEmailId, 422, 'Debes seleccionar o especificar un correo empresarial válido.');
+
         $request->validate([
             'company_email_id' => 'nullable|exists:company_emails,id',
             'company_email' => 'nullable|email',
-            'correo' => 'nullable|email',
-            'carpeta' => 'required|string|max:255',
+            'correo' => [
+                'nullable',
+                'email',
+                Rule::unique('email_rules')->where(fn ($query) => $query->where('company_email_id', $companyEmailId)->where('user_id', auth()->id()))->ignore($rule->id)
+            ],
+            'carpeta' => [
+                'required',
+                'string',
+                'max:255',
+                function ($attribute, $value, $fail) {
+                    if (strtolower(trim($value)) === 'inbox') {
+                        $fail('La carpeta destino no puede ser "INBOX" ya que el objetivo es organizar el correo.');
+                    }
+                }
+            ],
             'asunto' => 'nullable|string|max:255',
             'observaciones' => 'nullable|string|max:1000',
             'carpeta_sugerida' => 'nullable|string|max:255',
@@ -290,9 +327,6 @@ class EmailRuleController extends Controller
             'tipo_filtro' => 'nullable|in:remitente,asunto,contenido',
             'valor_filtro' => 'nullable|string|max:255',
         ]);
-
-        $companyEmailId = $this->resolveCompanyEmailId($request);
-        abort_if(!$companyEmailId, 422, 'Debes seleccionar o especificar un correo empresarial válido.');
 
         $companyEmail = CompanyEmail::findOrFail($companyEmailId);
         
@@ -304,6 +338,7 @@ class EmailRuleController extends Controller
         }
         
         abort_if($rule->company_email_id !== $companyEmailId, 403);
+        abort_if($rule->user_id !== auth()->id(), 403);
 
         $rule->update([
             'company_email_id' => $companyEmailId,
@@ -340,6 +375,8 @@ class EmailRuleController extends Controller
             abort_if($companyEmail->worker_id !== $user->id, 403);
         }
 
+        abort_if($rule->user_id !== auth()->id(), 403);
+
         $ruleData = $rule->toArray();
         $rule->delete();
 
@@ -348,6 +385,44 @@ class EmailRuleController extends Controller
         ]);
 
         return back()->with('success', 'Regla eliminada correctamente.');
+    }
+
+    /**
+     * Remove multiple selected email rules.
+     */
+    public function destroyMultiple(Request $request)
+    {
+        $request->validate([
+            'ids' => 'required|array',
+            'ids.*' => 'exists:email_rules,id'
+        ]);
+
+        if (empty($request->ids)) {
+            return back();
+        }
+
+        $rules = EmailRule::whereIn('id', $request->ids)->get();
+        if ($rules->isEmpty()) {
+            return back();
+        }
+
+        $companyEmailId = $rules->first()->company_email_id;
+        $companyEmail = CompanyEmail::findOrFail($companyEmailId);
+
+        $user = auth()->user();
+        if ($user->isAdmin()) {
+            abort_if($companyEmail->user_id !== $user->id, 403);
+        } else {
+            abort_if($companyEmail->worker_id !== $user->id, 403);
+        }
+
+        EmailRule::whereIn('id', $request->ids)->where('user_id', auth()->id())->delete();
+
+        $this->dispatchN8nEvent('reglas_eliminadas_masivamente', $companyEmail, [
+            'cantidad' => count($request->ids),
+        ]);
+
+        return back()->with('success', 'Reglas seleccionadas eliminadas correctamente.');
     }
 
     /**
@@ -367,8 +442,8 @@ class EmailRuleController extends Controller
             abort_if($companyEmail->worker_id !== $user->id, 403);
         }
 
-        $count = $companyEmail->emailRules()->count();
-        $companyEmail->emailRules()->delete();
+        $count = $companyEmail->emailRules()->where('user_id', auth()->id())->count();
+        $companyEmail->emailRules()->where('user_id', auth()->id())->delete();
 
         $this->dispatchN8nEvent('todas_reglas_eliminadas', $companyEmail, [
             'cantidad' => $count,

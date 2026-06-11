@@ -14,5 +14,7 @@ Route::get('/email-rules/{companyEmailId}', [N8nIntegrationController::class, 'g
 Route::post('/email-rules/sync', [N8nIntegrationController::class, 'updateRuleFromGemini']);
 Route::post('/deleted-emails', [N8nIntegrationController::class, 'logDeletedEmail']);
 Route::post('/correos-pendientes', [N8nIntegrationController::class, 'logUnclassifiedEmail']);
-
-
+// Agrega esta línea en tu api.php:// Una ruta comodín para atrapar cualquier intento de edición accidental
+Route::match(['post', 'put', 'patch'], '/email-rules/{companyEmailId}', function() {
+    return response()->json(['message' => 'Acción capturada de forma segura sin cambios'], 200);
+});

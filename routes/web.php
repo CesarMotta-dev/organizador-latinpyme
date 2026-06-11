@@ -39,10 +39,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/email-rules/import', [EmailRuleController::class, 'import'])->name('email-rules.import');
 
     // Actualizar/Modificar una regla existente (Filtros, carpetas, etc.)
-    Route::patch('/email-rules/{rule}', [EmailRuleController::class, 'update'])->name('email-rules.update');
+    Route::match(['put', 'patch'], '/email-rules/{rule}', [EmailRuleController::class, 'update'])->name('email-rules.update');
 
     // Eliminar todas las reglas
     Route::delete('/email-rules/delete-all', [EmailRuleController::class, 'destroyAll'])->name('email-rules.destroyAll');
+
+    // Eliminar varias reglas seleccionadas
+    Route::delete('/email-rules/delete-multiple', [EmailRuleController::class, 'destroyMultiple'])->name('email-rules.destroyMultiple');
 
     // Eliminar una regla específica
     Route::delete('/email-rules/{rule}', [EmailRuleController::class, 'destroy'])->name('email-rules.destroy');
