@@ -11,6 +11,7 @@ class DeletedEmail extends Model
 
     protected $fillable = [
         'user_id',
+        'company_email_id',
         'correo_remitente', // ◄— Nombre real en tu migración
         'asunto',
         'id_mensaje',

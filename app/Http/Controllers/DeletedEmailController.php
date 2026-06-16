@@ -22,13 +22,16 @@ class DeletedEmailController extends Controller
 
         $query = DeletedEmail::query();
 
-        // 🛠️ SOLUCIÓN AL ROJO: Cambiamos el método isAdmin() por la columna de la BD.
-        // Si en tu tabla de usuarios la columna se llama diferente (ej: 'role'), puedes cambiarlo aquí.
-        $esAdmin = isset($user->is_admin) && $user->is_admin == true;
+        $esAdmin = isset($user->is_admin) ? $user->is_admin : (method_exists($user, 'isAdmin') ? $user->isAdmin() : false);
 
         if (!$esAdmin) {
-            // Si es un Trabajador normal, solo ve los correos que él mismo eliminó
-            $query->where('user_id', $user->id);
+            // Si es un Trabajador, ve los correos eliminados de las cuentas a las que tiene acceso
+            $validCompanyEmailIds = \App\Models\CompanyEmail::where(function ($q) use ($user) {
+                $q->where('worker_id', $user->id)
+                  ->orWhere('user_id', $user->id);
+            })->pluck('id')->toArray();
+            
+            $query->whereIn('company_email_id', $validCompanyEmailIds);
         }
 
         // Paginamos usando la fecha de tu migración
@@ -44,8 +47,19 @@ class DeletedEmailController extends Controller
      */
     public function store(Request $request)
     {
+        // Buscamos la cuenta corporativa a partir del parámetro company_email
+        $companyEmail = null;
+        if ($request->filled('company_email')) {
+            $companyEmail = \App\Models\CompanyEmail::where('email', trim($request->input('company_email')))->first();
+        }
+
+        // Si se encuentra, usamos el ID de su dueño, de lo contrario lo dejamos en 1 o null
+        $userId = $companyEmail ? $companyEmail->user_id : (\App\Models\CompanyEmail::value('user_id') ?? 1);
+        $companyEmailId = $companyEmail ? $companyEmail->id : (\App\Models\CompanyEmail::value('id') ?? 1);
+
         $deletedEmail = DeletedEmail::create([
-            'user_id'          => null,
+            'user_id'          => $userId,
+            'company_email_id' => $companyEmailId,
             'correo_remitente' => $request->correo,
             'asunto'           => $request->asunto,
             'id_mensaje'       => $request->id_mensaje,
