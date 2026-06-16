@@ -15,8 +15,27 @@ class N8nIntegrationController extends Controller
      */
     public function getRules(Request $request, $companyEmailId = null)
     {
+        // 🚀 MEJORA DE ROBUSTEZ: Si el usuario pone el correo directamente en la URL como /api/email-rules/correo@empresa.com
+        // o /api/email-rules/company_email=correo@empresa.com
+        if ($companyEmailId && !is_numeric($companyEmailId)) {
+            $emailExtraido = str_replace('company_email=', '', $companyEmailId);
+            $request->merge(['company_email' => trim($emailExtraido)]);
+            $companyEmailId = null; // Reiniciamos para que busque por correo abajo
+        }
+
         if (!$companyEmailId && $request->filled('company_email')) {
-            $companyEmailId = CompanyEmail::where('email', $request->company_email)->value('id');
+            $correoLimpio = trim($request->company_email);
+            $companyEmailId = CompanyEmail::where('email', $correoLimpio)->value('id');
+
+            if (!$companyEmailId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No se encontró la cuenta de correo: ' . $correoLimpio,
+                    'total_reglas' => 0,
+                    'data' => [],
+                    'reglas' => []
+                ]);
+            }
         }
 
         if ($companyEmailId) {
@@ -67,60 +86,85 @@ class N8nIntegrationController extends Controller
     /**
      * n8n (nodo Gemini) llama este endpoint para actualizar una regla con su sugerencia.
      */
-    public function updateRuleFromGemini(Request $request)
-    {
-        $request->validate([
-            'company_email_id' => 'nullable|exists:company_emails,id',
-            'correo' => 'required|email',
-            'carpeta_sugerida' => 'nullable|string',
-            'asunto' => 'nullable|string',
-            'observaciones' => 'nullable|string',
-            'confirma_sugerencia' => 'nullable|string',
-            'carpeta_elegida' => 'nullable|string',
-            'id_mensaje' => 'nullable|string',
-        ]);
+ public function updateRuleFromGemini(Request $request)
+{
+    $request->validate([
+        'company_email_id' => 'nullable|exists:company_emails,id',
+        'correo' => 'required|email',
+        'carpeta_sugerida' => 'nullable|string',
+        'asunto' => 'nullable|string',
+        'observaciones' => 'nullable|string',
+        'confirma_sugerencia' => 'nullable|string',
+        'carpeta_elegida' => 'nullable|string',
+        'id_mensaje' => 'nullable|string',
+    ]);
 
-        $rule = EmailRule::where('correo', $request->correo)
-            ->when($request->company_email_id, fn ($query) => $query->where('company_email_id', $request->company_email_id))
-            ->first();
+    // 🟢 BUSCAMOS LA CUENTA CORPORATIVA PARA OBTENER SU DUEÑO (USER_ID)
+    $companyEmail = null;
+    $possibleIdentifiers = [
+        $request->input('company_email_id'),
+        $request->input('company_email'),
+        $request->input('cuenta_afectada'),
+        $request->input('cuenta')
+    ];
 
-        if ($rule) {
-            // Actualizamos
-            $rule->update([
-                'carpeta_sugerida' => $request->carpeta_sugerida ?? $rule->carpeta_sugerida,
-                'asunto' => $request->asunto ?? $rule->asunto,
-                'observaciones' => $request->observaciones ?? $rule->observaciones,
-                'confirma_sugerencia' => $request->confirma_sugerencia ?? $rule->confirma_sugerencia,
-                'carpeta_elegida' => $request->carpeta_elegida ?? $rule->carpeta_elegida,
-                'id_mensaje' => $request->id_mensaje ?? $rule->id_mensaje,
-            ]);
-            $action = 'updated';
-        } else {
-            // Si el correo no tiene regla, la creamos con la sugerencia
-            $companyEmailId = $request->company_email_id;
-
-            $rule = EmailRule::create([
-                'company_email_id' => $companyEmailId,
-                'correo' => $request->correo,
-                'carpeta' => $request->carpeta ?? 'INBOX',
-                'carpeta_sugerida' => $request->carpeta_sugerida,
-                'asunto' => $request->asunto,
-                'observaciones' => $request->observaciones,
-                'confirma_sugerencia' => $request->confirma_sugerencia,
-                'carpeta_elegida' => $request->carpeta_elegida,
-                'id_mensaje' => $request->id_mensaje,
-                'estado' => 'Activo',
-            ]);
-            $action = 'created';
+    foreach ($possibleIdentifiers as $identifier) {
+        if (!empty($identifier)) {
+            if (is_numeric($identifier)) {
+                $companyEmail = \App\Models\CompanyEmail::find($identifier);
+            } else {
+                $companyEmail = \App\Models\CompanyEmail::where('email', trim($identifier))->first();
+            }
+            
+            if ($companyEmail) {
+                break;
+            }
         }
-
-        return response()->json([
-            'success' => true,
-            'action' => $action,
-            'data' => $rule
-        ]);
     }
 
+    $userId = $companyEmail ? $companyEmail->user_id : (\App\Models\CompanyEmail::value('user_id') ?? 1);
+    $companyEmailId = $companyEmail ? $companyEmail->id : (\App\Models\CompanyEmail::value('id') ?? 1);
+
+    $rule = EmailRule::where('correo', $request->correo)
+        ->where('company_email_id', $companyEmailId)
+        ->first();
+
+    if ($rule) {
+        // Actualizamos las sugerencias existentes
+        $rule->update([
+            'carpeta_sugerida' => $request->carpeta_sugerida ?? $rule->carpeta_sugerida,
+            'asunto' => $request->asunto ?? $rule->asunto,
+            'observaciones' => $request->observaciones ?? $rule->observaciones,
+            'confirma_sugerencia' => $request->confirma_sugerencia ?? $rule->confirma_sugerencia,
+            'carpeta_elegida' => $request->carpeta_elegida ?? $rule->carpeta_elegida,
+            'id_mensaje' => $request->id_mensaje ?? $rule->id_mensaje,
+        ]);
+        $action = 'updated';
+    } else {
+        // Si el correo no tiene regla, la creamos inyectando el user_id resuelto
+        $rule = EmailRule::create([
+
+            'user_id' => $userId, // 🟢 ¡Misión cumplida! Evita el error de SQLite
+            'company_email_id' => $companyEmailId,
+            'correo' => $request->correo,
+            'carpeta' => $request->carpeta ?? 'INBOX',
+            'carpeta_sugerida' => $request->carpeta_sugerida,
+            'asunto' => $request->asunto,
+            'observaciones' => $request->observaciones,
+            'confirma_sugerencia' => $request->confirma_sugerencia,
+            'carpeta_elegida' => $request->carpeta_elegida,
+            'id_mensaje' => $request->id_mensaje,
+            'estado' => 'Activo',
+        ]);
+        $action = 'created';
+    }
+
+    return response()->json([
+        'success' => true,
+        'action' => $action,
+        'data' => $rule
+    ]);
+}
     /**
      * n8n llama a este endpoint cuando elimina un correo para dejar registro (trazabilidad).
      */
@@ -156,12 +200,36 @@ public function logUnclassifiedEmail(Request $request)
         $emailReal = 'desconocido@latinpyme.com';
     }
 
-    // Buscamos la primera cuenta corporativa que exista en el sistema
-    $companyEmailId = \App\Models\CompanyEmail::value('id') ?? 1;
+    // Intentamos obtener la cuenta desde los parámetros que envía n8n
+    $companyEmail = null;
+    $possibleIdentifiers = [
+        $request->input('company_email_id'),
+        $request->input('company_email'),
+        $request->input('cuenta_afectada'),
+        $request->input('cuenta')
+    ];
+
+    foreach ($possibleIdentifiers as $identifier) {
+        if (!empty($identifier)) {
+            if (is_numeric($identifier)) {
+                $companyEmail = \App\Models\CompanyEmail::find($identifier);
+            } else {
+                $companyEmail = \App\Models\CompanyEmail::where('email', trim($identifier))->first();
+            }
+            
+            if ($companyEmail) {
+                break;
+            }
+        }
+    }
+
+    // Buscamos la cuenta corporativa, o la primera si no se especificó o no se encontró
+    $companyEmailId = $companyEmail ? $companyEmail->id : (\App\Models\CompanyEmail::value('id') ?? 1);
+    $userId = $companyEmail ? $companyEmail->user_id : (\App\Models\CompanyEmail::value('user_id') ?? 1);
 
     // Guardamos usando estrictamente las llaves de tu $fillable
     \App\Models\EmailRule::create([
-        'user_id'             => 1,
+        'user_id'             => $userId,
         'company_email_id'    => $companyEmailId,
         'correo'              => $emailReal, // Usamos la variable segura
         'carpeta'             => 'POR CLASIFICAR',

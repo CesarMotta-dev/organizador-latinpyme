@@ -42,7 +42,8 @@ class CompanyEmailController extends Controller
     public function create()
     {
         $this->requireAdmin();
-        $workers = \App\Models\User::where('role', 'worker')->get(['id', 'name', 'email']);
+        // 🚀 Traer a TODOS los usuarios (incluyendo administradores) para que puedan auto-asignarse correos
+        $workers = \App\Models\User::get(['id', 'name', 'email']);
 
         return Inertia::render('CompanyEmails/Create', [
             'workers' => $workers
@@ -87,7 +88,7 @@ class CompanyEmailController extends Controller
         $this->requireAdmin();
         abort_if($companyEmail->user_id !== auth()->id(), 403);
 
-        $workers = \App\Models\User::where('role', 'worker')->get(['id', 'name', 'email']);
+        $workers = \App\Models\User::get(['id', 'name', 'email']);
 
         return Inertia::render('CompanyEmails/Edit', [
             'correoEmpresarial' => $companyEmail,
@@ -166,6 +167,7 @@ class CompanyEmailController extends Controller
             Http::timeout(8)
                 ->withHeaders(array_filter([
                     'X-N8N-Webhook-Secret' => config('services.n8n.webhook_secret'),
+                    'ngrok-skip-browser-warning' => 'true', // 🚀 REQUISITO NGROK: Evita que bloquee la petición con su pantalla de advertencia
                 ]))
                 ->post($this->n8nWebhookUrl, [
                     'evento' => $event,

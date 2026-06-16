@@ -53,6 +53,7 @@ const props = defineProps({
 });
 
 // 2. Estado
+const selectedBuzon = ref(props.selectedCompanyEmailId);
 const visibleModalRule = ref(false);
 const isEditing = ref(false);
 const currentRuleId = ref(null);
@@ -266,15 +267,31 @@ function handleCsvFile(event) {
                             <p class="text-sm text-gray-500 mt-1">Administra el destino de tus correos entrantes</p>
                         </div>
                         
-                        <div class="flex flex-wrap items-center gap-3">
-                            <span class="relative">
-                                <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
-                                <InputText v-model="filters['global'].value" placeholder="Buscar regla..." size="small" class="pl-10" />
-                            </span>
-                            <Button label="Crear Regla" icon="pi pi-plus" severity="success" @click="openNew"></Button>
-                            <Button label="Eliminar Seleccionadas" icon="pi pi-trash" severity="danger" class="ml-2" @click="deleteSelectedRules" :disabled="!selectedRules || selectedRules.length === 0"></Button>
-                            <Button label="Eliminar Todas" icon="pi pi-trash" severity="danger" class="ml-2" @click="deleteAllRules" :disabled="reglasDB.length === 0"></Button>
-                            <Button label="Importar CSV" icon="pi pi-cloud-upload" severity="help" class="ml-2" @click="openImportModal"></Button>
+                        <div class="flex flex-col md:flex-row items-start md:items-center gap-4">
+                            <!-- Dropdown para cambiar de buzón -->
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm font-medium text-gray-600">Buzón:</span>
+                                <Dropdown 
+                                    v-model="selectedBuzon"
+                                    :options="companyEmails" 
+                                    optionLabel="email" 
+                                    optionValue="id" 
+                                    placeholder="Selecciona un Buzón" 
+                                    class="w-full md:w-64 border-gray-300"
+                                    @change="(e) => router.get(route('dashboard'), { company_email_id: e.value })"
+                                />
+                            </div>
+
+                            <div class="flex flex-wrap items-center gap-3">
+                                <span class="relative">
+                                    <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                                    <InputText v-model="filters['global'].value" placeholder="Buscar regla..." size="small" class="pl-10" />
+                                </span>
+                                <Button label="Crear Regla" icon="pi pi-plus" severity="success" @click="openNew"></Button>
+                                <Button label="Eliminar Seleccionadas" icon="pi pi-trash" severity="danger" class="ml-2" @click="deleteSelectedRules" :disabled="!selectedRules || selectedRules.length === 0"></Button>
+                                <Button label="Eliminar Todas" icon="pi pi-trash" severity="danger" class="ml-2" @click="deleteAllRules" :disabled="reglasDB.length === 0"></Button>
+                                <Button label="Importar CSV" icon="pi pi-cloud-upload" severity="help" class="ml-2" @click="openImportModal"></Button>
+                            </div>
                         </div>
                     </div>
                     

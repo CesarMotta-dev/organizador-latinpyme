@@ -60,28 +60,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
-// ... Todo tu código anterior de web.php queda exactamente igual
 
-// 4️⃣ RUTAS PROTEGIDAS PARA EL ORGANIZADOR DE EMAILS (Requieren inicio de sesión)
-Route::middleware(['auth', 'verified'])->group(function () {
-    // ... tus otras rutas ...
-
-    Route::resource('company-emails', CompanyEmailController::class);
-    Route::get('/api/company-emails/select', [CompanyEmailController::class, 'getForSelect']);
-
-    // ESTA SE QUEDA ACÁ: Es la vista web protegida para que solo tú la veas logueado
-    Route::get('/deleted-emails', [DeletedEmailController::class, 'index'])->name('deleted-emails.index');
-
-    // ... tus rutas de perfil ...
-});
-
-// 5️⃣ CARGA DE RUTAS NATIVAS DE AUTENTICACIÓN
-require __DIR__.'/auth.php';
-
-
-// 🚀 6️⃣ ENDPOINT EXCLUSIVO PARA n8n (AFUERA DEL MIDDLEWARE DE AUTENTICACIÓN)
+// 🚀 5️⃣ ENDPOINT EXCLUSIVO PARA n8n (AFUERA DEL MIDDLEWARE DE AUTENTICACIÓN)
 // Al estar afuera, n8n puede enviarle el backup sin que Laravel le pida iniciar sesión.
 Route::post('/api/deleted-emails', [DeletedEmailController::class, 'store']);
 
-// 5´©ÅÔâú CARGA DE RUTAS NATIVAS DE AUTENTICACI├ôN (Login, Registro, Recuperar clave)
-require __DIR__.'/auth.php';
+// 6️⃣ CARGA DE RUTAS NATIVAS DE AUTENTICACIÓN (Login, Registro, Recuperar clave)
+require __DIR__ . '/auth.php';

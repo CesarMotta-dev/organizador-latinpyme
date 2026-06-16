@@ -31,12 +31,7 @@ class EmailRuleController extends Controller
     {
         $user = auth()->user();
         
-        // Get active company emails for the logged in user based on role
-        if ($user->isAdmin()) {
-            $companyEmails = $user->companyEmails()->where('estado', 'Activo')->get();
-        } else {
-            $companyEmails = $user->assignedCompanyEmails()->where('estado', 'Activo')->get();
-        }
+        $companyEmails = $this->accessibleCompanyEmails()->where('estado', 'Activo')->get();
         $validCompanyEmailIds = $companyEmails->pluck('id')->toArray();
 
         // Detect and report broken email rule relationships
@@ -51,8 +46,7 @@ class EmailRuleController extends Controller
             ->count();
 
         // Build the query for the selected company email
-        $query = EmailRule::whereIn('company_email_id', $validCompanyEmailIds)
-            ->where('user_id', auth()->id());
+        $query = EmailRule::whereIn('company_email_id', $validCompanyEmailIds);
 
         $selectedCompanyEmailId = request('company_email_id');
         $selectedCompanyEmailId = $selectedCompanyEmailId !== null ? (int) $selectedCompanyEmailId : null;
@@ -92,7 +86,7 @@ class EmailRuleController extends Controller
             'correo' => [
                 'nullable',
                 'email',
-                Rule::unique('email_rules')->where(fn ($query) => $query->where('company_email_id', $companyEmailId)->where('user_id', auth()->id()))
+                Rule::unique('email_rules')->where(fn ($query) => $query->where('company_email_id', $companyEmailId))
             ],
             'carpeta' => [
                 'required',
@@ -265,7 +259,7 @@ class EmailRuleController extends Controller
             }
 
             $regla = $companyEmail->emailRules()->updateOrCreate(
-                ['correo' => $data['correo'], 'user_id' => auth()->id()],
+                ['correo' => $data['correo']],
                 array_merge($data, [
                     'user_id' => auth()->id(),
                     'estado' => 'Activo'
@@ -306,7 +300,7 @@ class EmailRuleController extends Controller
             'correo' => [
                 'nullable',
                 'email',
-                Rule::unique('email_rules')->where(fn ($query) => $query->where('company_email_id', $companyEmailId)->where('user_id', auth()->id()))->ignore($rule->id)
+                Rule::unique('email_rules')->where(fn ($query) => $query->where('company_email_id', $companyEmailId))->ignore($rule->id)
             ],
             'carpeta' => [
                 'required',
@@ -330,15 +324,10 @@ class EmailRuleController extends Controller
 
         $companyEmail = CompanyEmail::findOrFail($companyEmailId);
         
-        $user = auth()->user();
-        if ($user->isAdmin()) {
-            abort_if($companyEmail->user_id !== $user->id, 403);
-        } else {
-            abort_if($companyEmail->worker_id !== $user->id, 403);
-        }
+        $isAccessible = $this->accessibleCompanyEmails()->where('id', $companyEmailId)->exists();
+        abort_if(!$isAccessible, 403);
         
         abort_if($rule->company_email_id !== $companyEmailId, 403);
-        abort_if($rule->user_id !== auth()->id(), 403);
 
         $rule->update([
             'company_email_id' => $companyEmailId,
@@ -366,16 +355,8 @@ class EmailRuleController extends Controller
      */
     public function destroy(EmailRule $rule)
     {
-        $companyEmail = CompanyEmail::findOrFail($rule->company_email_id);
-        
-        $user = auth()->user();
-        if ($user->isAdmin()) {
-            abort_if($companyEmail->user_id !== $user->id, 403);
-        } else {
-            abort_if($companyEmail->worker_id !== $user->id, 403);
-        }
-
-        abort_if($rule->user_id !== auth()->id(), 403);
+        $isAccessible = $this->accessibleCompanyEmails()->where('id', $rule->company_email_id)->exists();
+        abort_if(!$isAccessible, 403);
 
         $ruleData = $rule->toArray();
         $rule->delete();
@@ -407,16 +388,11 @@ class EmailRuleController extends Controller
         }
 
         $companyEmailId = $rules->first()->company_email_id;
-        $companyEmail = CompanyEmail::findOrFail($companyEmailId);
+        
+        $isAccessible = $this->accessibleCompanyEmails()->where('id', $companyEmailId)->exists();
+        abort_if(!$isAccessible, 403);
 
-        $user = auth()->user();
-        if ($user->isAdmin()) {
-            abort_if($companyEmail->user_id !== $user->id, 403);
-        } else {
-            abort_if($companyEmail->worker_id !== $user->id, 403);
-        }
-
-        EmailRule::whereIn('id', $request->ids)->where('user_id', auth()->id())->delete();
+        EmailRule::whereIn('id', $request->ids)->delete();
 
         $this->dispatchN8nEvent('reglas_eliminadas_masivamente', $companyEmail, [
             'cantidad' => count($request->ids),
@@ -433,17 +409,13 @@ class EmailRuleController extends Controller
         $companyEmailId = $this->resolveCompanyEmailId($request);
         abort_if(!$companyEmailId, 422, 'Debes seleccionar un correo empresarial válido.');
 
-        $companyEmail = CompanyEmail::findOrFail($companyEmailId);
-        
-        $user = auth()->user();
-        if ($user->isAdmin()) {
-            abort_if($companyEmail->user_id !== $user->id, 403);
-        } else {
-            abort_if($companyEmail->worker_id !== $user->id, 403);
-        }
+        $isAccessible = $this->accessibleCompanyEmails()->where('id', $companyEmailId)->exists();
+        abort_if(!$isAccessible, 403);
 
-        $count = $companyEmail->emailRules()->where('user_id', auth()->id())->count();
-        $companyEmail->emailRules()->where('user_id', auth()->id())->delete();
+        $companyEmail = CompanyEmail::findOrFail($companyEmailId);
+
+        $count = $companyEmail->emailRules()->count();
+        $companyEmail->emailRules()->delete();
 
         $this->dispatchN8nEvent('todas_reglas_eliminadas', $companyEmail, [
             'cantidad' => $count,
@@ -458,19 +430,10 @@ class EmailRuleController extends Controller
      */
     private function resolveCompanyEmailId(Request $request): ?int
     {
-        $user = auth()->user();
         if ($request->filled('company_email_id')) {
-            $companyEmail = CompanyEmail::where('id', $request->company_email_id)
-                ->where(function ($q) use ($user) {
-                    if ($user->isAdmin()) {
-                        $q->where('user_id', $user->id);
-                    } else {
-                        $q->where('worker_id', $user->id);
-                    }
-                })
-                ->first();
-
-            return $companyEmail?->id;
+            return $this->accessibleCompanyEmails()
+                ->where('id', $request->company_email_id)
+                ->value('id');
         }
 
         if ($request->filled('company_email')) {
@@ -484,9 +447,14 @@ class EmailRuleController extends Controller
     {
         $user = auth()->user();
 
-        return $user->isAdmin()
-            ? $user->companyEmails()
-            : $user->assignedCompanyEmails();
+        if ($user->isAdmin()) {
+            return CompanyEmail::query();
+        }
+
+        return CompanyEmail::where(function ($q) use ($user) {
+            $q->where('worker_id', $user->id)
+              ->orWhere('user_id', $user->id);
+        });
     }
 
     private function detectCsvDelimiter(string $line): string
@@ -520,6 +488,7 @@ class EmailRuleController extends Controller
             Http::timeout(8)
                 ->withHeaders(array_filter([
                     'X-N8N-Webhook-Secret' => config('services.n8n.webhook_secret'),
+                    'ngrok-skip-browser-warning' => 'true', // 🚀 REQUISITO NGROK: Evita que bloquee la petición con su pantalla de advertencia
                 ]))
                 ->post($this->n8nWebhookUrl, [
                     'evento' => $event,
@@ -546,11 +515,7 @@ class EmailRuleController extends Controller
     {
         $user = auth()->user();
         
-        if ($user->isAdmin()) {
-            $companyEmail = $user->companyEmails()->where('email', $email)->first();
-        } else {
-            $companyEmail = $user->assignedCompanyEmails()->where('email', $email)->first();
-        }
+        $companyEmail = $this->accessibleCompanyEmails()->where('email', $email)->first();
 
         if ($companyEmail) {
             if ($companyEmail->estado !== 'Activo') {
@@ -567,7 +532,8 @@ class EmailRuleController extends Controller
         $domain = explode('@', $email)[1] ?? $email;
         $domain = preg_replace('/^www\./', '', $domain);
 
-        return $user->companyEmails()->create([
+        return CompanyEmail::create([
+            'user_id' => $user->id,
             'email' => $email,
             'empresa' => $domain,
             'nombre' => 'Cuenta ' . $domain,

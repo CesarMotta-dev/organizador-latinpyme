@@ -40,6 +40,7 @@ class N8nService
                 'X-N8N-Secret'  => $this->secret,
                 'Content-Type'  => 'application/json',
                 'Accept'        => 'application/json',
+                'ngrok-skip-browser-warning' => 'true', // 🚀 REQUISITO NGROK: Evita que bloquee la petición con su pantalla de advertencia
             ])
             ->timeout(15)
             ->post($this->webhookUrl, $payload);
