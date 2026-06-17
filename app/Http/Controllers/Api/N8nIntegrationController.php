@@ -125,9 +125,17 @@ class N8nIntegrationController extends Controller
     $userId = $companyEmail ? $companyEmail->user_id : (\App\Models\CompanyEmail::value('user_id') ?? 1);
     $companyEmailId = $companyEmail ? $companyEmail->id : (\App\Models\CompanyEmail::value('id') ?? 1);
 
-    $rule = EmailRule::where('correo', $request->correo)
-        ->where('company_email_id', $companyEmailId)
-        ->first();
+    $rule = null;
+
+    if ($request->filled('id')) {
+        $rule = EmailRule::find($request->id);
+    }
+
+    if (!$rule) {
+        $rule = EmailRule::where('correo', $request->correo)
+            ->where('company_email_id', $companyEmailId)
+            ->first();
+    }
 
     if ($rule) {
         // Actualizamos las sugerencias existentes
