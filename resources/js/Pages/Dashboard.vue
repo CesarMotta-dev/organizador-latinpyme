@@ -302,8 +302,8 @@ function handleCsvFile(event) {
                             :value="reglasDB" 
                             dataKey="id"
                             scrollable
-                            scrollHeight="calc(100vh - 300px)"
-                            tableStyle="min-width: 50rem" 
+                            scrollHeight="600px"
+                            tableStyle="min-width: 100%" 
                             :globalFilterFields="['correo', 'carpeta', 'estado', 'asunto', 'carpeta_sugerida', 'confirma_sugerencia', 'carpeta_elegida', 'id_mensaje']"
                         >
                             <template #empty>
@@ -316,7 +316,9 @@ function handleCsvFile(event) {
 
                             <Column field="correo" header="Correo del Remitente" sortable>
                                 <template #body="slotProps">
-                                    <span class="font-medium text-gray-800">{{ slotProps.data.correo }}</span>
+                                    <span class="font-medium text-gray-800 block max-w-[160px] truncate" :title="slotProps.data.correo">
+                                        {{ slotProps.data.correo }}
+                                    </span>
                                 </template>
                             </Column>
                             
@@ -326,7 +328,7 @@ function handleCsvFile(event) {
                                         v-model="slotProps.data.carpeta" 
                                         :options="carpetasDisponibles"
                                         editable
-                                        class="w-full min-w-[150px]"
+                                        class="w-full min-w-[140px]"
                                         @change="updateRuleInline(slotProps.data)"
                                     />
                                 </template>
@@ -334,7 +336,9 @@ function handleCsvFile(event) {
 
                             <Column field="asunto" header="Asunto" sortable>
                                 <template #body="slotProps">
-                                    <span class="font-medium text-gray-800">{{ slotProps.data.asunto }}</span>
+                                    <span class="font-medium text-gray-800 block max-w-[220px] truncate" :title="slotProps.data.asunto">
+                                        {{ slotProps.data.asunto }}
+                                    </span>
                                 </template>
                             </Column>
 
@@ -364,7 +368,9 @@ function handleCsvFile(event) {
 
                             <Column field="id_mensaje" header="ID Mensaje" sortable>
                                 <template #body="slotProps">
-                                    <span class="text-sm text-gray-700">{{ slotProps.data.id_mensaje }}</span>
+                                    <span class="text-sm text-gray-700 block max-w-[80px] truncate" :title="slotProps.data.id_mensaje">
+                                        {{ slotProps.data.id_mensaje }}
+                                    </span>
                                 </template>
                             </Column>
 

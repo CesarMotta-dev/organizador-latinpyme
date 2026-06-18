@@ -89,14 +89,9 @@ class EmailRuleController extends Controller
                 Rule::unique('email_rules')->where(fn ($query) => $query->where('company_email_id', $companyEmailId))
             ],
             'carpeta' => [
-                'required',
+                'nullable',
                 'string',
                 'max:255',
-                function ($attribute, $value, $fail) {
-                    if (strtolower(trim($value)) === 'inbox') {
-                        $fail('La carpeta destino no puede ser "INBOX" ya que el objetivo es organizar el correo.');
-                    }
-                }
             ],
             'asunto' => 'nullable|string|max:255',
             'observaciones' => 'nullable|string|max:1000',
@@ -113,7 +108,7 @@ class EmailRuleController extends Controller
         $nuevaRegla = $companyEmail->emailRules()->create([
             'user_id' => auth()->id(),
             'correo' => $request->correo,
-            'carpeta' => $request->carpeta,
+            'carpeta' => ($request->carpeta && strtolower(trim($request->carpeta)) !== 'inbox') ? $request->carpeta : '',
             'asunto' => $request->asunto,
             'observaciones' => $request->observaciones,
             'carpeta_sugerida' => $request->carpeta_sugerida,
@@ -303,14 +298,9 @@ class EmailRuleController extends Controller
                 Rule::unique('email_rules')->where(fn ($query) => $query->where('company_email_id', $companyEmailId))->ignore($rule->id)
             ],
             'carpeta' => [
-                'required',
+                'nullable',
                 'string',
                 'max:255',
-                function ($attribute, $value, $fail) {
-                    if (strtolower(trim($value)) === 'inbox') {
-                        $fail('La carpeta destino no puede ser "INBOX" ya que el objetivo es organizar el correo.');
-                    }
-                }
             ],
             'asunto' => 'nullable|string|max:255',
             'observaciones' => 'nullable|string|max:1000',
@@ -332,7 +322,7 @@ class EmailRuleController extends Controller
         $rule->update([
             'company_email_id' => $companyEmailId,
             'correo' => $request->correo,
-            'carpeta' => $request->carpeta,
+            'carpeta' => ($request->carpeta && strtolower(trim($request->carpeta)) !== 'inbox') ? $request->carpeta : '',
             'asunto' => $request->asunto,
             'observaciones' => $request->observaciones,
             'carpeta_sugerida' => $request->carpeta_sugerida,
